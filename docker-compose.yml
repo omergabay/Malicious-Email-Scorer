@@ -5,8 +5,11 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend/src:/app/src
     environment:
       - PYTHONDONTWRITEBYTECODE=1
       - PYTHONUNBUFFERED=1
-    # You can add VT_API_KEY here later as an env var
+      - PYTHONPATH=/app/src
+      - VT_API_KEY=${VT_API_KEY}
     restart: always

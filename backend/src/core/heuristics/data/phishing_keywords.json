@@ -1,0 +1,50 @@
+{
+  "credential_theft": [
+    "reset password", "verify account", "update billing", "login now", 
+    "validate your identity", "auth required", "confirm your account", 
+    "unusual sign-in", "session expired", "secure message",
+    "אפס סיסמה", "אמת חשבון", "עדכן פרטי חיוב", "התחבר עכשיו", 
+    "אמת את זהותך", "אימות נדרש", "כניסה חריגה", "פג תוקף חיבור", "הודעה מאובטחת"
+  ],
+  "financial_fraud": [
+    "invoice attached", "payment overdue", "wire transfer", "bank statement", 
+    "urgent payment", "transaction declined", "remittance advice", 
+    "outstanding balance", "tax refund",
+    "חשבונית מצורפת", "תשלום באיחור", "העברה בנקאית", "דף חשבון", 
+    "תשלום דחוף", "העסקה נדחתה", "החזר מס", "יתרה לתשלום"
+  ],
+  "account_takeover_urgency": [
+    "suspended", "unauthorized access", "immediately", "final warning", 
+    "account restricted", "action required", "will be closed", 
+    "terminate your account", "access blocked",
+    "הושעה", "גישה לא מורשית", "מיידי", "אזהרה אחרונה", 
+    "חשבון מוגבל", "פעולה נדרשת", "ייסגר", "גישה נחסמה"
+  ],
+  "extortion_blackmail": [
+    "recorded you", "bitcoin", "pay within", "hacked your device", 
+    "compromised your camera", "trojan", "malware installed", 
+    "wallet address", "i know your password",
+    "הקלטתי אותך", "ביטקוין", "שלם תוך", "המכשיר נפרץ", 
+    "המצלמה נפרצה", "סוס טרויאני", "הותקנה נוזקה", "כתובת ארנק", "אני יודע את הסיסמה"
+  ],
+  "attachment_lures": [
+    "please review the attached", "document shared with you", 
+    "download receipt", "docusign", "view secure document", 
+    "shared via onedrive",
+    "נא לעיין במצורף", "מסמך שותף איתך", "הורד קבלה", 
+    "צפה במסמך מאובטח", "שותף דרך onedrive"
+  ],
+  "too_good_to_be_true": [
+    "lottery winner", "claim your prize", "inheritance", "free gift", 
+    "guaranteed return", "you have been selected", "exclusive reward", 
+    "no risk", "cash prize", "crypto giveaway",
+    "זכייה בלוטו", "דרוש את הפרס", "ירושה", "מתנה בחינם", 
+    "תשואה מובטחת", "נבחרת", "פרס כספי", "הגרלת קריפטו"
+  ],
+  "tech_support_scam": [
+    "subscription renewed", "auto-charged", "geek squad", "mcafee renewal", 
+    "norton invoice", "call to cancel", "refund your money", "help desk support",
+    "המנוי חודש", "חיוב אוטומטי", "חידוש mcafee", "חשבונית norton", 
+    "התקשר לביטול", "החזר כספי", "תמיכה טכנית"
+  ]
+}
