@@ -18,5 +18,6 @@
     ],
     "primaryColor": "#4285F4",
     "secondaryColor": "#EA4335"
-  }
+  },
+  "runtimeVersion": "V8"
 }
