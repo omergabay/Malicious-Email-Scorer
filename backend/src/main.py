@@ -4,22 +4,18 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from typing import Dict
 
-from api.schemas import EmailPayload, AnalysisResponse 
+from api.schemas import EmailPayload, AnalysisResponse
 from core.vt_client import VirusTotalClient
 from core.heuristics.engine import HeuristicEngine
 
-# Standard production logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Global engine instance to share cache and connection pools across requests
 engine: HeuristicEngine = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Everything before 'yield' runs on startup. Everything after runs on shutdown.
-    """
+    """Initializes the heuristic engine on startup and tears it down on shutdown."""
     global engine
     api_key = os.getenv("VT_API_KEY")
     

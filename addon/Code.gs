@@ -1,6 +1,3 @@
-/**
- * The main entry point for the Gmail Add-on.
- */
 function buildAddOn(e) {
   try {
     const payload = extractEmailData(e);
@@ -11,13 +8,13 @@ function buildAddOn(e) {
   }
 }
 
-function onRescan(e) { 
-  return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(buildAddOn(e))).build(); 
+function onRescan(e) {
+  return CardService.newActionResponseBuilder()
+    .setNavigation(CardService.newNavigation().updateCard(buildAddOn(e)))
+    .build();
 }
 
-// --- REAL INBOX ACTIONS ---
-
-function onMoveToSpam(e) { 
+function onMoveToSpam(e) {
   try {
     const messageId = e.messageMetadata.messageId;
     GmailApp.getMessageById(messageId).getThread().moveToSpam();
@@ -27,7 +24,7 @@ function onMoveToSpam(e) {
   }
 }
 
-function onMoveToTrash(e) { 
+function onMoveToTrash(e) {
   try {
     const messageId = e.messageMetadata.messageId;
     GmailApp.getMessageById(messageId).getThread().moveToTrash();
@@ -37,6 +34,8 @@ function onMoveToTrash(e) {
   }
 }
 
-function notify(text) { 
-  return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText(text)).build(); 
+function notify(text) {
+  return CardService.newActionResponseBuilder()
+    .setNotification(CardService.newNotification().setText(text))
+    .build();
 }

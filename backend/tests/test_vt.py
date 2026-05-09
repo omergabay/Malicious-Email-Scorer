@@ -1,43 +1,39 @@
-import asyncio
+"""
+Live integration tests for VirusTotalClient.
+
+These tests make real network requests and require VT_API_KEY to be set.
+They are skipped automatically when the key is absent to keep CI green.
+"""
 import os
-import logging
-import sys
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
-
+import pytest
 from core.vt_client import VirusTotalClient
 
-# Configure logging to see the cache hit messages
-logging.basicConfig(level=logging.INFO)
+VT_API_KEY = os.getenv("VT_API_KEY")
+requires_vt = pytest.mark.skipif(not VT_API_KEY, reason="VT_API_KEY not set")
 
-async def run_test() -> None:
-    # 1. Verify Environment Variable Injection
-    api_key: str | None = os.getenv("VT_API_KEY")
-    if not api_key or api_key == "paste_the_key_from_my_email_here":
-        print("❌ ERROR: VT_API_KEY is not set correctly or is using the placeholder.")
-        return
-        
-    print(f"✅ Securely loaded API Key: {api_key[:5]}...[REDACTED]")
-    
-    # Initialize the client
-    client = VirusTotalClient(api_key=api_key)
 
-    # 2. Test Live Network Request
-    print("\n🌐 Testing Live API Call for 'github.com'...")
-    domain_report = await client.get_domain_report("github.com")
-    
-    if domain_report and "data" in domain_report:
-        stats = domain_report["data"]["attributes"]["last_analysis_stats"]
-        print(f"✅ Success! VirusTotal Stats for github.com: {stats}")
-    else:
-        print("❌ Failed to retrieve live domain report.")
+@requires_vt
+@pytest.mark.asyncio
+async def test_live_domain_report_returns_data():
+    """A live VT domain lookup for a known-clean domain should return stats."""
+    client = VirusTotalClient(api_key=VT_API_KEY)
+    report = await client.get_domain_report("github.com")
 
-    # 3. Test LRU Cache Logic
-    print("\n⚡ Testing LRU Cache for 'github.com' (Should be instant)...")
-    cached_report = await client.get_domain_report("github.com")
-    
-    if cached_report:
-        print("✅ Cache test complete! (Check the logs above for the 'Cache hit' message)")
+    assert report is not None, "Expected a report dict, got None"
+    assert "data" in report, "Report missing 'data' key"
+    stats = report["data"]["attributes"]["last_analysis_stats"]
+    assert "malicious" in stats, "Stats missing 'malicious' key"
 
-if __name__ == "__main__":
-    asyncio.run(run_test())
+
+@requires_vt
+@pytest.mark.asyncio
+async def test_domain_report_is_cached_on_second_call():
+    """The second call for the same domain should hit the TTL cache (no network request)."""
+    client = VirusTotalClient(api_key=VT_API_KEY)
+
+    first = await client.get_domain_report("github.com")
+    assert first is not None
+
+    # Populate cache, then verify cache hit path returns the same object
+    second = await client.get_domain_report("github.com")
+    assert second is first, "Second call should return the same cached object"

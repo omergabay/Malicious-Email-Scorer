@@ -6,6 +6,8 @@ from .base import BaseHeuristic
 logger = logging.getLogger(__name__)
 
 class AttachmentHeuristic(BaseHeuristic):
+    """Scores attachments for dangerous extensions, double-extension tricks, and VT malware hits."""
+
     @property
     def name(self) -> str:
         return "attachment_scan"
@@ -13,36 +15,42 @@ class AttachmentHeuristic(BaseHeuristic):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.dangerous_exts: Set[str] = {
-            "exe", "bat", "ps1", "scr", "vbs", "js", "jar", "msi", 
+            "exe", "bat", "ps1", "scr", "vbs", "js", "jar", "msi",
             "cmd", "com", "hta", "vbe", "jse", "wsf", "wsh",
             "pif", "lnk", "reg", "dll", "library-ms", "search-ms"
         }
         self.safe_double_exts: Set[str] = {
             "tar.gz", "tar.bz2", "tar.xz", "min.js", "min.css", "d.ts"
         }
-        # NEW: A list of safe extensions attackers use as "lures"
+        # Extensions attackers use as visual lures (e.g. invoice.pdf.exe)
         self.lure_exts: Set[str] = {
             "pdf", "doc", "docx", "xls", "xlsx", "txt", "csv", "jpg", "png", "zip"
         }
 
     def _analyze_file(self, filename: str) -> Dict[str, Any]:
-        """Analyzes a filename for risky patterns."""
+        """Analyzes a filename for dangerous or deceptive extension patterns.
+
+        A double-extension is only flagged when the penultimate segment is a known
+        lure or dangerous extension (e.g. 'invoice.pdf.exe'), not a version number
+        (e.g. 'order.2026.pdf').
+
+        Args:
+            filename: The attachment filename to inspect.
+
+        Returns:
+            Dict with 'is_dangerous', 'is_double_extension', and 'extension'.
+        """
         parts = filename.lower().split('.')
         actual_ext = parts[-1] if parts else ""
-        
+
         is_double_ext = False
-        
         if len(parts) > 2:
             penultimate_ext = parts[-2]
             last_two = f"{penultimate_ext}.{actual_ext}"
-            
-            # SMART FILTER: It is only a threat if the middle part looks like a real extension
-            # e.g., 'invoice.pdf.exe' -> 'pdf' is in lure_exts (Flag it!)
-            # e.g., 'order.2026.pdf' -> '2026' is NOT in lure_exts (Ignore it!)
             if penultimate_ext in self.lure_exts or penultimate_ext in self.dangerous_exts:
                 if last_two not in self.safe_double_exts:
                     is_double_ext = True
-        
+
         return {
             "is_dangerous": actual_ext in self.dangerous_exts,
             "is_double_extension": is_double_ext,
@@ -50,6 +58,17 @@ class AttachmentHeuristic(BaseHeuristic):
         }
 
     async def evaluate(self, email_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Scores attachments using extension analysis and optional VT hash lookups.
+
+        VT scans are capped at 4 hashes, prioritised by suspicion level:
+        double-extension → dangerous extension → other.
+
+        Args:
+            email_data: Parsed email payload dict.
+
+        Returns:
+            Dict with 'score' (int) and 'details' (dict of findings).
+        """
         attachments = email_data.get("attachments", [])
         if not attachments:
             return {"score": 0, "details": {"files_analyzed": 0}}
@@ -57,14 +76,13 @@ class AttachmentHeuristic(BaseHeuristic):
         double_ext_hashes: Set[str] = set()
         dangerous_ext_hashes: Set[str] = set()
         other_hashes: Set[str] = set()
-        
         all_findings = []
 
         for att in attachments:
             name = att.get("filename", "unknown")
             sha256 = att.get("sha256")
-            if not sha256: continue
-
+            if not sha256:
+                continue
             analysis = self._analyze_file(name)
             analysis["filename"] = name
             analysis["sha256"] = sha256
@@ -77,43 +95,40 @@ class AttachmentHeuristic(BaseHeuristic):
             else:
                 other_hashes.add(sha256)
 
-        # --- Build Prioritized VT Queue ---
-        # 1. Double Ext -> 2. Dangerous Ext -> 3. Others
         queue = list(double_ext_hashes)
         for h in dangerous_ext_hashes:
-            if h not in queue: queue.append(h)
+            if h not in queue:
+                queue.append(h)
         for h in other_hashes:
-            if h not in queue: queue.append(h)
+            if h not in queue:
+                queue.append(h)
 
-        # Enrichment: Capped at 4 to respect VT rate limits
         vt_malicious_count = 0
         malicious_files: List[str] = []
         hashes_scanned = queue[:4]
-        
+
         if hashes_scanned and self.vt_client:
             tasks = [self.vt_client.get_file_hash_report(h) for h in hashes_scanned]
             results = await asyncio.gather(*tasks, return_exceptions=True)
-            
+
             for h, res in zip(hashes_scanned, results):
                 if res and not isinstance(res, Exception):
                     stats = res.get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
                     if stats.get("malicious", 0) > 0:
                         vt_malicious_count += 1
-                        # Map the hash back to the filename from our previous findings
                         fname = next((f["filename"] for f in all_findings if f["sha256"] == h), "Unknown File")
                         malicious_files.append(fname)
 
-        # --- Scoring Logic ---
-        score = 0
         has_double = len(double_ext_hashes) > 0
         has_dangerous = len(dangerous_ext_hashes) > 0
 
+        score = 0
         if vt_malicious_count > 0:
-            score = 100  # Critical immediate fail
+            score = 100
         elif has_double:
-            score = 40   # High suspicion for obfuscation
+            score = 40
         elif has_dangerous:
-            score = 25   # Suspicious file type
+            score = 25
 
         return {
             "score": score,
@@ -122,7 +137,7 @@ class AttachmentHeuristic(BaseHeuristic):
                 "files_analyzed": len(all_findings),
                 "vt_hashes_scanned": hashes_scanned,
                 "vt_malicious_hits": vt_malicious_count,
-                "malicious_files": malicious_files, # NEW: Pass to UI
+                "malicious_files": malicious_files,
                 "findings": all_findings
             }
         }
