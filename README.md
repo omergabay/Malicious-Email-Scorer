@@ -11,7 +11,10 @@ Gmail Add-on (Apps Script)
         │
         │  POST /api/v1/analyze  (JSON payload)
         ▼
-  FastAPI Backend  ──────────────────────────────────────────┐
+    ngrok Tunnel
+        │
+        ▼
+  FastAPI Backend (Docker) ──────────────────────────────────┐
         │                                                     │
         │  asyncio.gather()                                   │
         ├── SenderIdentityHeuristic                          │
@@ -27,6 +30,32 @@ Gmail Add-on (Apps Script)
         ▼
 Gmail Add-on renders card UI
 ```
+
+---
+
+## Security & Data Handling
+
+Treating all email content as untrusted input is a core design principle of this architecture:
+
+- Strict Input Validation: The backend uses strict Pydantic schemas (schemas.py) to sanitize and validate the incoming JSON payload. Overly large payloads are truncated to prevent memory exhaustion (DoS mitigation).
+
+- No Execution: Attachments are never downloaded or executed. The frontend computes the SHA-256 hash and sends only the hash to the backend for threat intelligence lookup.
+
+- HTML Sanitization: Before running social engineering heuristics, raw HTML is parsed safely using BeautifulSoup to extract plaintext, preventing malicious scripts from interfering with the analysis engine.
+
+---
+
+## Trade-offs and Future Work
+
+Given the strict four-day time constraint for this assignment, several architectural trade-offs were made to prioritize a functional, end-to-end reliable pipeline over deep infrastructure complexity. If I had more time, I would expand the system in the following ways:
+
+- Persistent Database: Currently, the system uses an in-memory TTLCache to store VirusTotal results and reduce API calls. With more time, I would integrate a persistent data store (like Redis or PostgreSQL). This would allow the system to maintain a historical reputation graph of senders across container restarts and build a long-term profile of targeted attacks.
+
+- External Threat Intelligence APIs: VirusTotal is highly effective, but it is a single point of failure. I would implement an adapter pattern to query multiple distinct Threat Intelligence (CTI) feeds concurrently, such as URLScan.io for dynamic link detonation, or AbuseIPDB for sender IP reputation.
+
+- Machine Learning Models: The social engineering heuristic currently relies on deterministic regex pattern matching and keyword density. While fast and predictable, it struggles with highly semantic or novel attacks. I would replace or augment this with an NLP model (e.g., a fine-tuned BERT model or an LLM integration) to analyze the intent of the text (e.g., detecting manufactured urgency or manipulation) rather than relying strictly on predefined threat feeds.
+
+- Sandboxed Detonation (Dynamic Analysis): Currently, the attachment heuristic only performs static analysis (extension checking) and hash lookups. A robust future feature would involve routing suspicious attachments (like .docx or .pdf files) to a secure sandbox (e.g., Cuckoo Sandbox or an AWS EC2 throwaway instance) to detonate the file and monitor its actual behavioral footprint before delivering a verdict.
 
 ---
 
@@ -67,7 +96,7 @@ Each heuristic returns a raw score. The engine aggregates them as follows:
 ### 1. Clone the repo
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/omergabay/Malicious-Email-Scorer
 cd Malicious-Email-Scorer
 ```
 
@@ -97,7 +126,7 @@ curl http://localhost:8000/health
 ### 4. Create an ngrok tunnel
 
 ```bash
-.\ngrok http 127.0.0.1:8000
+.\ngrok.exe http 127.0.0.1:8000
 ```
 
 Copy the HTTPS forwarding URL (e.g. `https://abc123.ngrok-free.dev`). You will need it in the next step.
@@ -116,6 +145,7 @@ Copy the HTTPS forwarding URL (e.g. `https://abc123.ngrok-free.dev`). You will n
    - `CardBuilder.gs`
    - `Extractor.gs`
 4. Add `appsscript.json` as the manifest (enable "Show appsscript.json manifest file" in Project Settings).
+5. Enable Chrome V8 runtime
 
 ### 2. Set the backend URL
 
