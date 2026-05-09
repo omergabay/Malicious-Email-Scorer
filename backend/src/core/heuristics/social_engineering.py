@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class SocialEngineeringHeuristic(BaseHeuristic):
     @property
     def name(self) -> str:
-        return "phishing_intent"
+        return "social_engineering"
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -80,6 +80,7 @@ class SocialEngineeringHeuristic(BaseHeuristic):
         return {
             "score": min(score, 40),
             "details": {
+                "score": min(score, 40),
                 "density": round(density, 4),
                 "total_matches": len(matches),
                 "categories_triggered": triggered_categories

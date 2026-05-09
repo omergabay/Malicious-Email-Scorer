@@ -56,7 +56,8 @@ async def analyze_email(payload: EmailPayload) -> AnalysisResponse:
         return AnalysisResponse(
             verdict=result["verdict"],
             total_score=result["total_score"],
-            analysis=result["analysis"]
+            analysis=result["analysis"],
+            analyst_report=result.get("analyst_report", [])
         )
         
     except Exception as e:

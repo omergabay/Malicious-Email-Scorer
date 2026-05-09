@@ -18,6 +18,14 @@ class LinkMismatchHeuristic(BaseHeuristic):
             "bit.ly", "tinyurl.com", "t.co", "goo.gl", "ow.ly", "qrco.de",
             "is.gd", "buff.ly", "cutt.ly", "rebrand.ly", "t.ly", "goo.su"
         }
+        # NEW: Common Email Service Provider (ESP) tracking and marketing domains
+        # Updated with the specific domain found in your logs
+        self.safe_trackers: Set[str] = {
+            "klaviyo.com", "klclick3.com", "sendgrid.net", "mailchimp.com", 
+            "list-manage.com", "hubspot.com", "hs-analytics.net", "marketo.com", 
+            "pardot.com", "awstrack.me", "mailgun.org", "constantcontact.com", 
+            "shopify.com", "sg.sendinblue.com", "click.mlsend.com", "activehosted.com"
+        }
 
     def _get_registered_domain(self, text: str) -> str:
         if not text:
@@ -60,6 +68,10 @@ class LinkMismatchHeuristic(BaseHeuristic):
             is_shortener = href_domain in self.shorteners
 
             if is_mismatch:
+                # SMART FILTER: If the redirect goes to a known marketing tracker, ignore it
+                if href_domain in self.safe_trackers:
+                    continue
+                    
                 mismatches.append({"display": display_text, "actual_href": href})
                 mismatch_domains.add(href_domain)
                 
@@ -67,7 +79,6 @@ class LinkMismatchHeuristic(BaseHeuristic):
                 shortener_domains.add(href_domain)
 
         # --- 2. Build the Prioritized Queue ---
-        # Order of operations: Mismatches first, then any Shorteners that aren't already in the list
         prioritized_scan_queue: List[str] = list(mismatch_domains)
         for domain in shortener_domains:
             if domain not in mismatch_domains:
@@ -78,14 +89,11 @@ class LinkMismatchHeuristic(BaseHeuristic):
         domains_scanned: List[str] = []
         
         if prioritized_scan_queue and self.vt_client:
-            # VirusTotal allows to make up to 4 API calls per minute, so we'll cap the number of calls to 4
             domains_to_scan = prioritized_scan_queue[:4]
             domains_scanned = domains_to_scan
             
             if len(prioritized_scan_queue) > 4:
                 logger.warning(f"Rate limit defense: Capping VT scans at 4. Ignored {len(prioritized_scan_queue) - 4} lower-priority domains.")
-
-            logger.info(f"Concurrent VT Scan started for {len(domains_to_scan)} domains...")
             
             tasks = [self.vt_client.get_domain_report(domain) for domain in domains_to_scan]
             results = await asyncio.gather(*tasks, return_exceptions=True)

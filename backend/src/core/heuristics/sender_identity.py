@@ -1,7 +1,9 @@
 import logging
 import tldextract
 import re
-from typing import Dict, Any
+import json
+import os
+from typing import Dict, Any, Set
 from .base import BaseHeuristic
 
 logger = logging.getLogger(__name__)
@@ -11,13 +13,37 @@ class SenderIdentityHeuristic(BaseHeuristic):
     def name(self) -> str:
         return "sender_identity"
 
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.allowlist: Set[str] = set()
+        self._load_trusted_domains()
+
+    def _load_trusted_domains(self) -> None:
+        """Loads the trusted domain allowlist into memory once at startup."""
+        file_path = os.path.join(os.path.dirname(__file__), "data", "trusted_domains.json")
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                categories = json.load(f)
+                
+            # Flatten the categorized lists into a single, lightning-fast Set
+            for domains in categories.values():
+                for domain in domains:
+                    self.allowlist.add(domain.lower())
+                    
+            logger.info(f"Loaded {len(self.allowlist)} trusted domains into the allowlist.")
+            
+        except FileNotFoundError:
+            logger.error(f"Allowlist file missing at {file_path}. Sender analysis degraded.")
+            # Fallback to absolute bare minimums if the file is missing
+            self.allowlist = {"google.com"}
+
     def _get_domain(self, email_header: str) -> str:
         """Extracts a valid registered domain from a messy raw email header."""
         if not email_header:
             return ""
             
         # 1. Clean the header: Extract exactly what is inside the < > brackets
-        # If no brackets exist, just use the raw string.
         match = re.search(r'<([^>]+)>', email_header)
         clean_email = match.group(1) if match else email_header.strip()
         
@@ -30,7 +56,6 @@ class SenderIdentityHeuristic(BaseHeuristic):
         # 3. Finally, extract the safe, root domain
         ext = tldextract.extract(domain_part)
         
-        # Only return the domain if both the domain and suffix (e.g., .com) exist
         if ext.domain and ext.suffix:
             return f"{ext.domain}.{ext.suffix}".lower()
             
@@ -76,11 +101,8 @@ class SenderIdentityHeuristic(BaseHeuristic):
         # --- Scoring Logic ---
         score = 0
         
-        # High Risk: The domains don't match AND the security check failed
         if auth_failed and domain_mismatch:
             score += 50
-        # Medium-Low Risk: The domains don't match, but the security check passed
-        # (This is common in internal Gmail-to-Gmail routing)
         elif domain_mismatch:
             score += 15 
             
@@ -90,6 +112,9 @@ class SenderIdentityHeuristic(BaseHeuristic):
         if vt_reputation == "malicious":
             score += 50
 
+        # Determine if this is a cryptographically verified trusted sender
+        is_allowlisted = bool(s_domain in self.allowlist and not auth_failed)
+
         return {
             "score": score,
             "details": {
@@ -98,6 +123,7 @@ class SenderIdentityHeuristic(BaseHeuristic):
                 "domain_mismatch": domain_mismatch,
                 "reply_mismatch": reply_mismatch,
                 "return_path_reputation": vt_reputation,
+                "is_allowlisted": is_allowlisted,
                 "domains": {"from": s_domain, "return_path": r_domain, "reply_to": reply_domain}
             }
         }

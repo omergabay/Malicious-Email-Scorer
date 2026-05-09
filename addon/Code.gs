@@ -3,17 +3,40 @@
  */
 function buildAddOn(e) {
   try {
-    // 1. Extract
     const payload = extractEmailData(e);
-    
-    // 2. Analyze
     const analysisResult = analyzeEmailWithBackend(payload);
-    
-    // 3. Render
     return buildAnalysisCard(analysisResult);
-    
   } catch (error) {
-    // Catch any extraction or network errors and render the fallback UI
     return buildErrorCard(error.message);
   }
+}
+
+function onRescan(e) { 
+  return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(buildAddOn(e))).build(); 
+}
+
+// --- REAL INBOX ACTIONS ---
+
+function onMoveToSpam(e) { 
+  try {
+    const messageId = e.messageMetadata.messageId;
+    GmailApp.getMessageById(messageId).getThread().moveToSpam();
+    return notify('Thread moved to Spam.');
+  } catch (err) {
+    return notify('Error: ' + err.message);
+  }
+}
+
+function onMoveToTrash(e) { 
+  try {
+    const messageId = e.messageMetadata.messageId;
+    GmailApp.getMessageById(messageId).getThread().moveToTrash();
+    return notify('Thread moved to Trash.');
+  } catch (err) {
+    return notify('Error: ' + err.message);
+  }
+}
+
+function notify(text) { 
+  return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText(text)).build(); 
 }

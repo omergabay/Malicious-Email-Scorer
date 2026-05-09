@@ -5,7 +5,8 @@
   "oauthScopes": [
     "https://www.googleapis.com/auth/gmail.addons.execute",
     "https://www.googleapis.com/auth/gmail.readonly",
-    "https://www.googleapis.com/auth/script.external_request"
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/gmail.modify"
   ],
   "gmail": {
     "name": "Malicious Email Scorer",
@@ -16,8 +17,8 @@
         "onTriggerFunction": "buildAddOn"
       }
     ],
-    "primaryColor": "#4285F4",
-    "secondaryColor": "#EA4335"
+    "primaryColor": "#0d1117",
+    "secondaryColor": "#cf222e"
   },
   "runtimeVersion": "V8"
 }

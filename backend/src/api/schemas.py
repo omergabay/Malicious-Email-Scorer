@@ -19,7 +19,6 @@ class EmailPayload(BaseModel):
     headers: Dict[str, str] = Field(default_factory=dict, description="Key-value pairs of raw email headers")
     
     # Body Content - Hard capped to prevent regex/BeautifulSoup memory exhaustion (DoS protection)
-    # 50,000 chars is roughly 10-15 pages of text.
     body_plain: str = Field("", max_length=50000, description="The plaintext body of the email")
     body_html: str = Field("", max_length=150000, description="The raw HTML body of the email") 
     
@@ -31,3 +30,5 @@ class AnalysisResponse(BaseModel):
     total_score: int = Field(..., description="Aggregated score from 0 to 100")
     verdict: str = Field(..., description="Final verdict (Safe, Suspicious, Malicious)")
     analysis: Dict[str, Any] = Field(..., description="Detailed breakdown of each heuristic's specific findings")
+    # NEW: Added the analyst report field to the API contract
+    analyst_report: List[str] = Field(default_factory=list, description="A list of human-readable security insights")

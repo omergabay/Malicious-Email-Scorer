@@ -17,12 +17,31 @@ class AttachmentHeuristic(BaseHeuristic):
             "cmd", "com", "hta", "vbe", "jse", "wsf", "wsh",
             "pif", "lnk", "reg", "dll", "library-ms", "search-ms"
         }
+        self.safe_double_exts: Set[str] = {
+            "tar.gz", "tar.bz2", "tar.xz", "min.js", "min.css", "d.ts"
+        }
+        # NEW: A list of safe extensions attackers use as "lures"
+        self.lure_exts: Set[str] = {
+            "pdf", "doc", "docx", "xls", "xlsx", "txt", "csv", "jpg", "png", "zip"
+        }
 
     def _analyze_file(self, filename: str) -> Dict[str, Any]:
         """Analyzes a filename for risky patterns."""
         parts = filename.lower().split('.')
-        is_double_ext = len(parts) > 2
         actual_ext = parts[-1] if parts else ""
+        
+        is_double_ext = False
+        
+        if len(parts) > 2:
+            penultimate_ext = parts[-2]
+            last_two = f"{penultimate_ext}.{actual_ext}"
+            
+            # SMART FILTER: It is only a threat if the middle part looks like a real extension
+            # e.g., 'invoice.pdf.exe' -> 'pdf' is in lure_exts (Flag it!)
+            # e.g., 'order.2026.pdf' -> '2026' is NOT in lure_exts (Ignore it!)
+            if penultimate_ext in self.lure_exts or penultimate_ext in self.dangerous_exts:
+                if last_two not in self.safe_double_exts:
+                    is_double_ext = True
         
         return {
             "is_dangerous": actual_ext in self.dangerous_exts,
@@ -95,6 +114,7 @@ class AttachmentHeuristic(BaseHeuristic):
         return {
             "score": score,
             "details": {
+                "score": score,
                 "files_analyzed": len(all_findings),
                 "vt_hashes_scanned": hashes_scanned,
                 "vt_malicious_hits": vt_malicious_count,
