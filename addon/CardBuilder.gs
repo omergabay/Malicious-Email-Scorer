@@ -256,84 +256,71 @@ function buildBreakdownSection(analysis) {
 
 
 
-// Extracts specific domains, links, and filenames to show EXACTLY what failed
-
+// Extracts specific domains, links, words, and filenames to show EXACTLY what failed
 function getSpecificDetailsText(name, d) {
-
   let lines = [];
-
-  const add = (text) => lines.push(`&#x200E;  • ${text}`); // &#x200E; protects RTL UI
-
-
+  const add = (text) => lines.push(`&#x200E;  • ${text}`);
 
   if (name === 'sender_identity') {
-
     if (d.domain_mismatch && (d.score||0) > 0) {
-
-      add(`<b>Spoofing:</b> 'From' (${d.domains?.from || 'unknown'}) hides real path (${d.domains?.return_path || 'unknown'})`);
-
+      add(`<b>Spoofing:</b> 'From' (${d.domains?.from || 'unknown'}) masks real path (${d.domains?.return_path || 'unknown'})`);
     }
-
+    if (d.reply_mismatch && (d.score||0) > 0) {
+      add(`<b>Reply Route:</b> Replies go to unexpected domain (${d.domains?.reply_to || 'unknown'})`);
+    }
     if (d.auth_failed) add("<b>Auth:</b> SPF/DKIM validation failed");
-
-    if (d.return_path_reputation === 'malicious') add("<b>Reputation:</b> VirusTotal flagged sender domain");
-
-  }
-
+    if (d.return_path_reputation === 'malicious') add(`<b>Reputation:</b> VT flagged domain (${d.domains?.return_path || d.domains?.from})`);
+  } 
+  
   else if (name === 'social_engineering') {
-
     if (d.categories_triggered && Object.keys(d.categories_triggered).length > 0) {
-
-      const cats = Object.keys(d.categories_triggered).join(', ').replace(/_/g, ' ');
-
-      add(`<b>Phrasing:</b> Triggered ${cats} filters`);
-
-    }
-
-  }
-
-  else if (name === 'link_target_mismatch') {
-
-    if (d.mismatch_found && d.mismatched_links && d.mismatched_links.length > 0) {
-
-      const ex = d.mismatched_links[0];
-
-      // Limit the href length so it doesn't break the UI bounds
-
-      add(`<b>Deception:</b> Hidden redirect to '${ex.actual_href.substring(0,35)}...'`);
-
-    }
-
-    if (d.is_shortener) add("<b>Obfuscation:</b> Uses link shortener");
-
-    if ((d.vt_malicious_hits||0) >= 3) add(`<b>Malware:</b> VT flagged ${d.vt_malicious_hits} link(s)`);
-
-  }
-
-  else if (name === 'attachment_scan') {
-
-    if ((d.vt_malicious_hits||0) > 0) add("<b>Malware:</b> VT confirmed malicious attachment");
-
-    if (d.findings) {
-
-      d.findings.forEach(f => {
-
-        if (f.is_double_extension) add(`<b>Double Ext:</b> '${f.filename}'`);
-
-        if (f.is_dangerous) add(`<b>Dangerous Type:</b> '${f.filename}'`);
-
+      // Loop through each triggered category and extract the exact words
+      Object.entries(d.categories_triggered).forEach(([cat, words]) => {
+        const cleanCat = cat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        if (words && words.length > 0) {
+          add(`<b>${cleanCat}:</b> "${words.join(', ')}"`);
+        }
       });
-
     }
-
+  } 
+  
+  else if (name === 'link_target_mismatch') {
+    // Show up to 3 specific deceptive links so the UI doesn't overflow
+    if (d.mismatch_found && d.mismatched_links && d.mismatched_links.length > 0) {
+      d.mismatched_links.slice(0, 3).forEach(ex => {
+        add(`<b>Deception:</b> '${ex.display.substring(0, 20)}...' → '${ex.actual_href.substring(0, 30)}...'`);
+      });
+      if (d.mismatched_links.length > 3) add(`<i>...and ${d.mismatched_links.length - 3} more</i>`);
+    }
+    
+    // Explicitly list the shortener domains used
+    if (d.is_shortener && d.shortener_domains && d.shortener_domains.length > 0) {
+      add(`<b>Obfuscation:</b> Shorteners used (${d.shortener_domains.join(', ')})`);
+    } else if (d.is_shortener) {
+      add("<b>Obfuscation:</b> Uses link shortener");
+    }
+    
+    // Explicitly list the domains flagged by VT
+    if (d.malicious_domains && d.malicious_domains.length > 0) {
+      add(`<b>Malware:</b> VT flagged domains: ${d.malicious_domains.join(', ')}`);
+    }
+  } 
+  
+  else if (name === 'attachment_scan') {
+    // Explicitly list the exact files flagged by VT
+    if (d.malicious_files && d.malicious_files.length > 0) {
+      add(`<b>Malware:</b> VT flagged file(s): ${d.malicious_files.join(', ')}`);
+    }
+    
+    if (d.findings) {
+      d.findings.forEach(f => {
+        if (f.is_double_extension) add(`<b>Double Ext:</b> '${f.filename}'`);
+        if (f.is_dangerous) add(`<b>Dangerous Type:</b> '${f.filename}'`);
+      });
+    }
   }
-
-
-
-  // Return a muted, smaller text block if there are triggers to show
 
   return lines.length > 0 ? `<font color="${BRAND.muted}">${lines.join('<br>')}</font>` : null;
-
 }
 
 
