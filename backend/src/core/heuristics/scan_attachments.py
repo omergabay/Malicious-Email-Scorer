@@ -87,17 +87,21 @@ class AttachmentHeuristic(BaseHeuristic):
 
         # Enrichment: Capped at 4 to respect VT rate limits
         vt_malicious_count = 0
+        malicious_files: List[str] = []
         hashes_scanned = queue[:4]
         
         if hashes_scanned and self.vt_client:
             tasks = [self.vt_client.get_file_hash_report(h) for h in hashes_scanned]
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
-            for res in results:
+            for h, res in zip(hashes_scanned, results):
                 if res and not isinstance(res, Exception):
                     stats = res.get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
                     if stats.get("malicious", 0) > 0:
                         vt_malicious_count += 1
+                        # Map the hash back to the filename from our previous findings
+                        fname = next((f["filename"] for f in all_findings if f["sha256"] == h), "Unknown File")
+                        malicious_files.append(fname)
 
         # --- Scoring Logic ---
         score = 0
@@ -118,6 +122,7 @@ class AttachmentHeuristic(BaseHeuristic):
                 "files_analyzed": len(all_findings),
                 "vt_hashes_scanned": hashes_scanned,
                 "vt_malicious_hits": vt_malicious_count,
+                "malicious_files": malicious_files, # NEW: Pass to UI
                 "findings": all_findings
             }
         }

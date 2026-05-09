@@ -86,6 +86,7 @@ class LinkMismatchHeuristic(BaseHeuristic):
 
         # --- 3. Enrichment: Concurrent VT Scans with Rate Limit Defense ---
         vt_malicious_hits = 0
+        malicious_domains: List[str] = []
         domains_scanned: List[str] = []
         
         if prioritized_scan_queue and self.vt_client:
@@ -98,14 +99,17 @@ class LinkMismatchHeuristic(BaseHeuristic):
             tasks = [self.vt_client.get_domain_report(domain) for domain in domains_to_scan]
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
-            for res in results:
+            for domain, res in zip(domains_to_scan, results):
                 if isinstance(res, Exception):
                     logger.error(f"VT API call failed during concurrent scan: {str(res)}")
                     continue
                     
                 if res:
                     stats = res.get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
-                    vt_malicious_hits += stats.get("malicious", 0)
+                    hits = stats.get("malicious", 0)
+                    vt_malicious_hits += hits
+                    if hits >= 3:
+                        malicious_domains.append(domain)
 
         # --- 4. Dynamic Scoring Logic ---
         has_mismatch = len(mismatches) > 0
@@ -125,10 +129,12 @@ class LinkMismatchHeuristic(BaseHeuristic):
             "details": {
                 "score": score,
                 "is_shortener": is_shortener_present,
+                "shortener_domains": list(shortener_domains), # NEW: Pass to UI
                 "mismatch_found": has_mismatch,
                 "mismatch_count": len(mismatches),
                 "mismatched_links": mismatches,
                 "vt_domains_scanned": domains_scanned,
-                "vt_malicious_hits": vt_malicious_hits
+                "vt_malicious_hits": vt_malicious_hits,
+                "malicious_domains": malicious_domains # NEW: Pass to UI
             }
         }
